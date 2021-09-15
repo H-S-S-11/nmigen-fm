@@ -1,0 +1,3 @@
+[submodule "nco"]
+	path = nco
+	url = https://github.com/H-S-S-11/numerically-controlled-oscillator
