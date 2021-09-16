@@ -11,7 +11,8 @@ from nmigen_boards.ml505 import *
 
 # Better bands might be
 # 105.20-106.00,  106.00-107.00, 107.40-107.80 (numbers are stations)
-
+# Can do 106.25MHz with div_in = 4, mult = 17, div_out = 4
+# Can then use a 500kHz IF
 
 class FM_TX(Elaboratable):
     def __init__(self, clk_freq=100e6, if_centre_freq=5e6, carrier=95e6,
@@ -72,6 +73,7 @@ class FM_TX(Elaboratable):
             sin_input_width=9)
 
         # Input can be up to 64000 so we need to multiply by 64 to reach about 10kHz swing
+        # Was a bit quiet so bumped up to +- 20kHz
         m.submodules.fm = fm = FM_Mod(prescaler=128)
         fm_wave = Signal(shape=Shape(10, True))
 
