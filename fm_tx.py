@@ -11,8 +11,9 @@ from nmigen_boards.ml505 import *
 
 # Better bands might be
 # 105.20-106.00,  106.00-107.00, 107.40-107.80 (numbers are stations)
+
 # Can do 106.25MHz with div_in = 4, mult = 17, div_out = 4
-# Can then use a 500kHz IF
+# Can then use a 550kHz IF for 106.8 and 105.7 recieve
 
 class FM_TX(Elaboratable):
     def __init__(self, clk_freq=100e6, if_centre_freq=5e6, carrier=95e6,
@@ -29,33 +30,33 @@ class FM_TX(Elaboratable):
         m = Module()
 
         # Set up carrier clocks and PLL
-        clk95     = Signal()
-        clk95_buf = Signal()
+        carrier     = Signal()
+        carrier_buf = Signal()
         pll_lock  = Signal()
-        clk95_fb  = Signal()
-        platform.add_clock_constraint(clk95_buf, 95e6)
+        carrier_fb  = Signal()
+        platform.add_clock_constraint(carrier_buf, 110e6)
 
         m.submodules.carrier_pll = Instance("PLL_ADV",
             p_BANDWIDTH             = "OPTIMIZED",
             p_COMPENSATION          = "SYSTEM_SYNCHRONOUS",
-            p_DIVCLK_DIVIDE         = 4,
-            p_CLKFBOUT_MULT         = 19,
-            p_CLKOUT0_DIVIDE        = 5,
+            p_DIVCLK_DIVIDE         = 4,  # 4 for 95M
+            p_CLKFBOUT_MULT         = 17, # 19 for 95M
+            p_CLKOUT0_DIVIDE        = 4,  # 5 for 95M
             p_CLKOUT0_PHASE         = 0.00,
             p_CLKOUT0_DUTY_CYCLE    = 0.500,
             p_CLKIN1_PERIOD         = 10.000,
             i_CLKINSEL              = Const(1),
-            i_CLKFBIN               = clk95_fb,
+            i_CLKFBIN               = carrier_fb,
             i_RST                   = Const(0),
-            o_CLKFBOUT              = clk95_fb,
+            o_CLKFBOUT              = carrier_fb,
             i_CLKIN1                = ClockSignal("sync"),
-            o_CLKOUT0               = clk95,
+            o_CLKOUT0               = carrier,
             o_LOCKED                = pll_lock,
         )
 
-        m.submodules.clk95_bufg = Instance("BUFG",
-            i_I = clk95,
-            o_O = clk95_buf,
+        m.submodules.carrier_bufg = Instance("BUFG",
+            i_I = carrier,
+            o_O = carrier_buf,
         )
 
         # Add GPIO resources
@@ -74,11 +75,11 @@ class FM_TX(Elaboratable):
 
         # Input can be up to 64000 so we need to multiply by 64 to reach about 10kHz swing
         # Was a bit quiet so bumped up to +- 20kHz
-        m.submodules.fm = fm = FM_Mod(prescaler=128)
+        m.submodules.fm = fm = FM_Mod(center_freq=550e3, prescaler=128)
         fm_wave = Signal(shape=Shape(10, True))
 
         m.d.comb += [
-            self.outputs.carrier.o.eq(clk95_buf),
+            self.outputs.carrier.o.eq(carrier_buf),
             nco.phi_inc_i.eq( calc_phi_inc(440, 100e6) ),
             fm.input.eq(nco.sine_wave_o),
             fm_wave.eq(fm.output),
