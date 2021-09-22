@@ -8,7 +8,7 @@ import time
 import io
 
 
-ser = serial.Serial('COM8', 441000)
+ser = serial.Serial('COM8', 2*441000)
 
 # try:
 #     while True:
@@ -21,12 +21,12 @@ ser = serial.Serial('COM8', 441000)
 # except KeyboardInterrupt:
 #     pass
 
-with open("bangarang-44k.wav", mode="rb") as audio:
-    try:
-        while True:
-            ser.write(audio.read())
-    except KeyboardInterrupt:
-        pass
+try:
+    while True:
+        with open("bangarang-44k.wav", mode="rb") as audio:            
+                ser.write(audio.read())
+except KeyboardInterrupt:
+    pass
 
 ser.close()
             

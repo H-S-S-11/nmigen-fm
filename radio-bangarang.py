@@ -4,10 +4,10 @@ from nmigen.lib.cdc import *
 from nmigen.lib.io import Pin
 
 from nco.nco_lut_pipelined import *
-
+from nco.fir_pipelined import FIR_Pipelined
+from nco.pdm import PDM
+from peripherals.ac97 import AC97_Controller
 from fm_if import *
-
-from luna.gateware.interface.uart import UARTTransmitter
 
 from utility.uart_rx import UART_RX
 
@@ -33,13 +33,11 @@ class Radio_Bangarang(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
+        speedup = 2
+
         # UART loopback
-        m.submodules.uart_rx = uart_rx = UART_RX(baud_rate=441000, fclk=100e6)
-        uart_divisor = int(100e6/441000)
-        m.submodules.uart_tx = uart_tx = UARTTransmitter(divisor=uart_divisor)
-
-
-
+        m.submodules.uart_rx = uart_rx = UART_RX(baud_rate=speedup*441000, fclk=100e6)
+        
         # Set up carrier clocks and PLL
         carrier     = Signal()
         carrier_buf = Signal()
@@ -85,13 +83,16 @@ class Radio_Bangarang(Elaboratable):
             ])
             self.outputs = platform.request("fm_tx")
             uart    = platform.request("uart")
+            dpad = platform.request("dpad")
           
         m.submodules.tone = nco = NCO_LUT_Pipelined(output_width=16, 
             sin_input_width=9)
+        m.submodules.lpf = lpf = FIR_Pipelined(taps=16, cutoff=15e3/100e6)
+        m.submodules.pdm= pdm = PDM(resolution = self.pwm_resolution)
 
         # Input can be up to 64000 so we need to multiply by 64 to reach about 10kHz swing
         # Was a bit quiet so bumped up to +- 20kHz
-        m.submodules.fm = fm = FM_Mod(center_freq=550e3, prescaler=128)
+        m.submodules.fm = fm = FM_Mod(center_freq=550e3, prescaler=256)
         fm_wave = Signal(shape=Shape(10, True))
 
         old_valid = Signal()
@@ -124,20 +125,14 @@ class Radio_Bangarang(Elaboratable):
             self.outputs.carrier.o.eq(carrier_buf),
             nco.phi_inc_i.eq( phi_inc ),
 
+            lpf.input.eq( data_buff << 8 ),
+            lpf.input_ready_i.eq(Const(1)),    
             # fm.input.eq(nco.sine_wave_o),
             fm.input.eq( data_buff << 8 ),
-
+            
             fm_wave.eq(fm.output),
             self.outputs.intermediate.o.eq(fm_wave[9]),
 
-
-            # uart_rx.valid uart_rx.data
-            uart_tx.stream.valid.eq( uart_rx.valid & ~old_valid ),
-            uart_tx.stream.first.eq(Const(1)),
-            uart_tx.stream.last .eq(Const(1)),
-            uart_tx.stream.payload.eq( uart_rx.data ),
-            
-            uart.tx.o.eq(uart_tx.tx),
             uart_rx.rx.eq(uart.rx.i),
         ]
 
