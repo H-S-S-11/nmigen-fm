@@ -20,7 +20,7 @@ from nmigen_boards.ml505 import *
 # Can then use a 550kHz IF for 106.8 and 105.7 recieve
 
 class Radio_Bangarang(Elaboratable):
-    def __init__(self, clk_freq=100e6, if_centre_freq=5e6, carrier=95e6,
+    def __init__(self, audio_resolution=8, clk_freq=100e6, if_centre_freq=5e6, carrier=95e6,
             bandwidth=10e3):
         # 216895848 max phi inc
         # 212600881 min phi inc
@@ -29,6 +29,8 @@ class Radio_Bangarang(Elaboratable):
         self.center_freq = if_centre_freq
         self.bandwidth = bandwidth
         self.carrier = carrier
+
+        self.audio_resolution = audio_resolution
 
     def elaborate(self, platform):
         m = Module()
@@ -88,7 +90,7 @@ class Radio_Bangarang(Elaboratable):
         m.submodules.tone = nco = NCO_LUT_Pipelined(output_width=16, 
             sin_input_width=9)
         m.submodules.lpf = lpf = FIR_Pipelined(taps=16, cutoff=15e3/100e6)
-        m.submodules.pdm= pdm = PDM(resolution = self.pwm_resolution)
+        m.submodules.pdm= pdm = PDM(resolution = self.audio_resolution )
 
         # Input can be up to 64000 so we need to multiply by 64 to reach about 10kHz swing
         # Was a bit quiet so bumped up to +- 20kHz
@@ -134,6 +136,9 @@ class Radio_Bangarang(Elaboratable):
             self.outputs.intermediate.o.eq(fm_wave[9]),
 
             uart_rx.rx.eq(uart.rx.i),
+
+            pdm.input.eq(data_buff),
+            pdm.write_en.eq(0),
         ]
 
         return m
